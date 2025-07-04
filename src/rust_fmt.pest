@@ -1,0 +1,30 @@
+format_string = _{ SOI ~ (maybe_format | ANY)* ~ EOI }
+maybe_format  = _{ ("{" ~ "{" | "}" ~ "}") | format }
+format        =  { "{" ~ argument? ~ (":" ~ format_spec)? ~ WHITESPACE* ~ "}" }
+format_spec   =  { (fill? ~ align)? ~ sign? ~ alternate? ~ zero_pad? ~ width? ~ ("." ~ precision)? ~ type_fmt? }
+fill          =  { (ASCII_ALPHANUMERIC | "+" | "-") }
+align         = @{ "<" | "^" | ">" }
+sign          = @{ "+" | "-" }
+alternate     = @{ "#" }
+zero_pad      = @{ "0" }
+argument      =  { (integer | identifier) }
+parameter     =  { argument ~ "$" }
+count         =  { integer | parameter }
+precision     =  { count | "*" }
+width         =  { count }
+
+type_debug         = @{ "?" }
+type_debug_low_hex = @{ "x?" }
+type_debug_up_hex  = @{ "X?" }
+type_oct           = @{ "o" }
+type_low_hex       = @{ "x" }
+type_up_hex        = @{ "X" }
+type_ptr           = @{ "p" }
+type_bin           = @{ "b" }
+type_low_exp       = @{ "e" }
+type_upper_exp     = @{ "E" }
+type_fmt           =  { (type_debug | type_debug_low_hex | type_debug_up_hex | type_oct | type_low_hex | type_up_hex | type_ptr | type_bin | type_low_exp | type_upper_exp | identifier) }
+integer            =  { ASCII_DIGIT+ }
+identifier         =  { ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")+ }
+
+WHITESPACE = _{ " " | "\t" }
