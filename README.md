@@ -1,3 +1,7 @@
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/qjerome/dyf/rust.yml?style=for-the-badge)](https://github.com/qjerome/dyf/actions/workflows/rust.yml)
+[![Crates.io Version](https://img.shields.io/crates/v/dyf?style=for-the-badge)](https://crates.io/crates/dyf)
+[![docs.rs](https://img.shields.io/docsrs/dyf?style=for-the-badge&logo=docs.rs&color=blue)](https://docs.rs/dyf)
+
 <!-- cargo-rdme start -->
 
 # Dynamic String Formatting for Rust (dyf)
