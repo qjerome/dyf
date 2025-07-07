@@ -31,7 +31,7 @@ macro_rules! impl_debug {
                     | FmtType::Ptr
                     | FmtType::Bin
                     | FmtType::LowExp
-                    | FmtType::UpperExp => Err(Error::UnsupportedSpec),
+                    | FmtType::UpperExp => Err(Error::UnsupportedSpec(f.clone())),
                 }
                 .map(|s| f.fill_and_align(s, Align::Left))
             }
@@ -60,7 +60,7 @@ macro_rules! impl_debug_display {
                     | FmtType::Ptr
                     | FmtType::Bin
                     | FmtType::LowExp
-                    | FmtType::UpperExp => Err(Error::UnsupportedSpec),
+                    | FmtType::UpperExp => Err(Error::UnsupportedSpec(f.clone())),
                 }
                 .map(|s| f.fill_and_align(s, Align::Left))
             }
@@ -87,7 +87,7 @@ impl DynDisplay for char {
             | FmtType::Ptr
             | FmtType::Bin
             | FmtType::LowExp
-            | FmtType::UpperExp => Err(Error::UnsupportedSpec),
+            | FmtType::UpperExp => Err(Error::UnsupportedSpec(f.clone())),
         }
         .map(|s| f.fill_and_align(s, Align::Left))
     }
@@ -115,7 +115,7 @@ impl<T> DynDisplay for *const T {
             | FmtType::Octal
             | FmtType::Bin
             | FmtType::LowExp
-            | FmtType::UpperExp => Err(Error::UnsupportedSpec),
+            | FmtType::UpperExp => Err(Error::UnsupportedSpec(f.clone())),
         }
         .map(|s| f.fill_and_align(s, Align::Right))
     }
@@ -141,7 +141,7 @@ impl<T> DynDisplay for *mut T {
             | FmtType::Octal
             | FmtType::Bin
             | FmtType::LowExp
-            | FmtType::UpperExp => Err(Error::UnsupportedSpec),
+            | FmtType::UpperExp => Err(Error::UnsupportedSpec(f.clone())),
         }
         .map(|s| f.fill_and_align(s, Align::Right))
     }
@@ -187,7 +187,7 @@ impl DynDisplay for &str {
             | FmtType::Bin
             | FmtType::Octal
             | FmtType::LowExp
-            | FmtType::UpperExp => Err(Error::UnsupportedSpec),
+            | FmtType::UpperExp => Err(Error::UnsupportedSpec(f.clone())),
         }
     }
 }
@@ -199,11 +199,11 @@ impl DynDisplay for str {
 }
 
 impl DynDisplay for String {
-    fn dyn_fmt(&self, t: &FormatSpec) -> Result<String, Error> {
-        if matches!(t.ty, FmtType::Ptr) {
-            return Err(Error::UnsupportedSpec);
+    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
+        if matches!(f.ty, FmtType::Ptr) {
+            return Err(Error::UnsupportedSpec(f.clone()));
         }
-        DynDisplay::dyn_fmt(&self.as_str(), t)
+        DynDisplay::dyn_fmt(&self.as_str(), f)
     }
 }
 
@@ -262,7 +262,7 @@ macro_rules! impl_dyn_display_float {
                     | FmtType::Bin
                     | FmtType::LowerHex
                     | FmtType::Octal
-                    | FmtType::UpperHex => Err(Error::UnsupportedSpec),
+                    | FmtType::UpperHex => Err(Error::UnsupportedSpec(f.clone())),
                 }
                 .map(|s| f.fill_and_align(s, Align::Right))
             }
@@ -437,3 +437,9 @@ impl_debug!(PathBuf);
 // ffi
 impl_debug!(OsString);
 impl_debug!(&OsStr);
+
+impl DynDisplay for &dyn DynDisplay {
+    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
+        (*self).dyn_fmt(f)
+    }
+}
