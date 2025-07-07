@@ -4,7 +4,7 @@
 
 <!-- cargo-rdme start -->
 
-# Dynamic String Formatting for Rust (dyf)
+# Dynamic String Formatting for Rust
 
 The `dyf` crate brings dynamic string formatting to Rust while supporting the whole variety of string formats available in Rust.
 It provides an easy way to implement dynamic formatting for custom types with the implementation of the `DynDisplay` trait.
@@ -171,8 +171,8 @@ The crate supports all standard Rust format specifiers, including:
 | Sign | `+` `-` |
 | Alternate | `#` |
 | Zero-padding | `0` |
-| Width | `{:5}` `{:width$}` |
-| Precision | `{:.2}` `{:.precision$}` |
+| Width | `{:5}` |
+| Precision | `{:.2}` |
 | Type | `?` `x` `X` `o` `b` `e` `E` `p` |
 
 ## Performance Considerations
