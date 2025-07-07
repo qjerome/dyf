@@ -215,6 +215,137 @@ mod imp;
 mod parser;
 use parser::{FmtParser, Rule};
 
+/// Errors that can occur during dynamic formatting.
+///
+/// This enum represents all possible errors that can occur during the parsing and
+/// application of format specifications.
+#[derive(Debug, Error)]
+pub enum Error {
+    /// An unsupported format specification was encountered.
+    ///
+    /// This error occurs when a format specification contains options or combinations
+    /// that are not supported by the formatting machinery.
+    #[error("unsupported format spec {0}")]
+    UnsupportedSpec(FormatSpec),
+
+    /// The number of arguments doesn't match the number of format specifications.
+    ///
+    /// This error occurs when the number of arguments provided to a format string
+    /// doesn't match the number of format specifications in the string.
+    ///
+    /// # Examples
+    ///
+    /// Providing too few arguments:
+    ///
+    /// ```rust
+    /// use dyf::{FormatString, dformat, Error};
+    ///
+    /// let fmt = FormatString::from_string("{}, {}".to_string()).unwrap();
+    /// let result = dformat!(&fmt, "only one argument");
+    /// assert!(matches!(result, Err(Error::ArgumentCountMismatch(2, 1))));
+    /// ```
+    ///
+    /// Providing too many arguments:
+    ///
+    /// ```rust
+    /// use dyf::{FormatString, dformat, Error};
+    ///
+    /// let fmt = FormatString::from_string("{}".to_string()).unwrap();
+    /// let result = dformat!(&fmt, "one", "extra");
+    /// assert!(matches!(result, Err(Error::ArgumentCountMismatch(1, 2))));
+    /// ```
+    #[error(
+        "number of arguments doesn't match number of format specifications expected={0} found={1}"
+    )]
+    ArgumentCountMismatch(usize, usize),
+
+    /// An error occurred during format string parsing.
+    ///
+    /// This error wraps parsing errors from the underlying [`pest`] parser and provides
+    /// information about syntax errors in format strings.
+    #[error("format parsing error: {0}")]
+    Parse(#[from] Box<pest::error::Error<Rule>>),
+}
+
+/// A trait for dynamic display formatting.
+///
+/// This trait provides a way to implement custom formatting for types that need to support
+/// dynamic format specifications at runtime. It's similar to the standard [`std::fmt::Display`] trait
+/// but with additional formatting control through [`FormatSpec`].
+///
+/// # Examples
+///
+/// Basic implementation for a custom type:
+///
+/// ```
+/// use dyf::{DynDisplay, FormatSpec, Error};
+///
+/// struct Point {
+///     x: i32,
+///     y: i32,
+/// }
+///
+/// impl DynDisplay for Point {
+///     fn dyn_fmt(&self, spec: &FormatSpec) -> Result<String, Error> {
+///         let s = format!("Point({}, {})", self.x, self.y);
+///         Ok(spec.fill_and_align(s, dyf::Align::Left))
+///     }
+/// }
+/// ```
+///
+/// Implementation with format-aware behavior:
+///
+/// ```
+/// use dyf::{DynDisplay, FormatSpec, Error, FmtType};
+///
+/// struct Color {
+///     r: u8,
+///     g: u8,
+///     b: u8,
+/// }
+///
+/// impl DynDisplay for Color {
+///     fn dyn_fmt(&self, spec: &FormatSpec) -> Result<String, Error> {
+///         match spec.ty {
+///             FmtType::LowerHex => Ok(format!(
+///                 "#{:02x}{:02x}{:02x}",
+///                 self.r, self.g, self.b
+///             )),
+///             FmtType::UpperHex => Ok(format!(
+///                 "#{:02X}{:02X}{:02X}",
+///                 self.r, self.g, self.b
+///             )),
+///             FmtType::Debug => Ok(format!(
+///                 "Color {{ r: {}, g: {}, b: {} }}",
+///                 self.r, self.g, self.b
+///             )),
+///             _ => Ok(format!(
+///                 "RGB({}, {}, {})",
+///                 self.r, self.g, self.b
+///             )),
+///         }.map(|s| spec.fill_and_align(s, dyf::Align::Left))
+///     }
+/// }
+/// ```
+pub trait DynDisplay {
+    /// Formats the value using the given format specification.
+    ///
+    /// # Arguments
+    ///
+    /// * `spec` - The format specification containing alignment, width, precision,
+    ///   and other formatting options
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the formatted string or an error if formatting fails.
+    ///
+    /// # Errors
+    ///
+    /// This function may return an error if the format specification is not supported
+    /// for this type or if formatting fails for other reasons.
+    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error>;
+}
+
 /// Specifies the type of formatting to apply to a value.
 ///
 /// The `FmtType` enum represents the various format types that can be specified
@@ -655,137 +786,6 @@ impl Display for Format {
         write!(f, "{}", self.spec)?;
         write!(f, "}}")
     }
-}
-
-/// Errors that can occur during dynamic formatting.
-///
-/// This enum represents all possible errors that can occur during the parsing and
-/// application of format specifications.
-#[derive(Debug, Error)]
-pub enum Error {
-    /// An unsupported format specification was encountered.
-    ///
-    /// This error occurs when a format specification contains options or combinations
-    /// that are not supported by the formatting machinery.
-    #[error("unsupported format spec {0}")]
-    UnsupportedSpec(FormatSpec),
-
-    /// The number of arguments doesn't match the number of format specifications.
-    ///
-    /// This error occurs when the number of arguments provided to a format string
-    /// doesn't match the number of format specifications in the string.
-    ///
-    /// # Examples
-    ///
-    /// Providing too few arguments:
-    ///
-    /// ```rust
-    /// use dyf::{FormatString, dformat, Error};
-    ///
-    /// let fmt = FormatString::from_string("{}, {}".to_string()).unwrap();
-    /// let result = dformat!(&fmt, "only one argument");
-    /// assert!(matches!(result, Err(Error::ArgumentCountMismatch(2, 1))));
-    /// ```
-    ///
-    /// Providing too many arguments:
-    ///
-    /// ```rust
-    /// use dyf::{FormatString, dformat, Error};
-    ///
-    /// let fmt = FormatString::from_string("{}".to_string()).unwrap();
-    /// let result = dformat!(&fmt, "one", "extra");
-    /// assert!(matches!(result, Err(Error::ArgumentCountMismatch(1, 2))));
-    /// ```
-    #[error(
-        "number of arguments doesn't match number of format specifications expected={0} found={1}"
-    )]
-    ArgumentCountMismatch(usize, usize),
-
-    /// An error occurred during format string parsing.
-    ///
-    /// This error wraps parsing errors from the underlying [`pest`] parser and provides
-    /// information about syntax errors in format strings.
-    #[error("format parsing error: {0}")]
-    Parse(#[from] Box<pest::error::Error<Rule>>),
-}
-
-/// A trait for dynamic display formatting.
-///
-/// This trait provides a way to implement custom formatting for types that need to support
-/// dynamic format specifications at runtime. It's similar to the standard [`std::fmt::Display`] trait
-/// but with additional formatting control through [`FormatSpec`].
-///
-/// # Examples
-///
-/// Basic implementation for a custom type:
-///
-/// ```
-/// use dyf::{DynDisplay, FormatSpec, Error};
-///
-/// struct Point {
-///     x: i32,
-///     y: i32,
-/// }
-///
-/// impl DynDisplay for Point {
-///     fn dyn_fmt(&self, spec: &FormatSpec) -> Result<String, Error> {
-///         let s = format!("Point({}, {})", self.x, self.y);
-///         Ok(spec.fill_and_align(s, dyf::Align::Left))
-///     }
-/// }
-/// ```
-///
-/// Implementation with format-aware behavior:
-///
-/// ```
-/// use dyf::{DynDisplay, FormatSpec, Error, FmtType};
-///
-/// struct Color {
-///     r: u8,
-///     g: u8,
-///     b: u8,
-/// }
-///
-/// impl DynDisplay for Color {
-///     fn dyn_fmt(&self, spec: &FormatSpec) -> Result<String, Error> {
-///         match spec.ty {
-///             FmtType::LowerHex => Ok(format!(
-///                 "#{:02x}{:02x}{:02x}",
-///                 self.r, self.g, self.b
-///             )),
-///             FmtType::UpperHex => Ok(format!(
-///                 "#{:02X}{:02X}{:02X}",
-///                 self.r, self.g, self.b
-///             )),
-///             FmtType::Debug => Ok(format!(
-///                 "Color {{ r: {}, g: {}, b: {} }}",
-///                 self.r, self.g, self.b
-///             )),
-///             _ => Ok(format!(
-///                 "RGB({}, {}, {})",
-///                 self.r, self.g, self.b
-///             )),
-///         }.map(|s| spec.fill_and_align(s, dyf::Align::Left))
-///     }
-/// }
-/// ```
-pub trait DynDisplay {
-    /// Formats the value using the given format specification.
-    ///
-    /// # Arguments
-    ///
-    /// * `spec` - The format specification containing alignment, width, precision,
-    ///   and other formatting options
-    ///
-    /// # Returns
-    ///
-    /// A `Result` containing the formatted string or an error if formatting fails.
-    ///
-    /// # Errors
-    ///
-    /// This function may return an error if the format specification is not supported
-    /// for this type or if formatting fails for other reasons.
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error>;
 }
 
 impl Format {
