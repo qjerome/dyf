@@ -348,7 +348,7 @@ pub trait DynDisplay {
 
 /// Specifies the type of formatting to apply to a value.
 ///
-/// The `FmtType` enum represents the various format types that can be specified
+/// The [`FmtType`] enum represents the various format types that can be specified
 /// in a format string after the colon. These determine how values are converted
 /// to strings, including different representations for numbers, debugging output,
 /// and other special formats.
@@ -506,7 +506,7 @@ impl Display for FmtType {
 
 /// Specifies the alignment of formatted text within a field width.
 ///
-/// The `Align` enum determines how text should be aligned when a width is specified
+/// The [`Align`] enum determines how text should be aligned when a width is specified
 /// in a format specification. It controls whether the text is left-aligned, right-aligned,
 /// or centered within the allocated space.
 #[derive(Debug, Clone, Copy)]
@@ -542,7 +542,7 @@ impl Display for Align {
 
 /// Specifies how signs should be displayed for numeric values.
 ///
-/// The `Sign` enum controls the display of signs for numeric values in formatted output.
+/// The [`Sign`] enum controls the display of signs for numeric values in formatted output.
 /// It determines whether positive numbers should show a plus sign, only negative numbers
 /// should show a minus sign, or no special sign handling should be applied.
 ///
@@ -578,7 +578,7 @@ impl Display for Sign {
 
 /// A complete format specification for dynamic formatting.
 ///
-/// `FormatSpec` represents all the components of a format specification that can appear
+/// [`FormatSpec`] represents all the components of a format specification that can appear
 /// between the colons in a format string: `"{:<5.2}"`. It controls how values are formatted
 /// including alignment, padding, width, precision, and type-specific formatting.
 ///
@@ -821,7 +821,7 @@ impl Format {
 
 /// A parsed format string that can be used for dynamic formatting.
 ///
-/// `FormatString` represents a string with embedded format specifications that has been
+/// [`FormatString`] represents a string with embedded format specifications that has been
 /// parsed and can be used with the [`dformat!`] macro to perform dynamic formatting operations.
 /// It contains the original string along with information about the format specifications
 /// found within it.
@@ -883,7 +883,7 @@ impl FormatString {
         })
     }
 
-    /// Creates a new `FormatString` from a string.
+    /// Creates a new [`FormatString`] from a string.
     ///
     /// # Arguments
     ///
@@ -929,7 +929,7 @@ impl FormatString {
 
     /// Returns a borrowed version of the format string.
     ///
-    /// This provides access to the original string without consuming the `FormatString`.
+    /// This provides access to the original string without consuming the [`FormatString`].
     ///
     /// # Examples
     ///
@@ -965,9 +965,8 @@ impl FormatString {
 /// A formatter that applies format specifications to values.
 ///
 /// The `Formatter` struct collects arguments and applies format specifications to them
-/// to build the final formatted string. Unlike the previous version, it now collects
-/// all arguments first using `push_arg` and then performs the formatting in one operation
-/// with the `format` method.
+/// to build the final formatted string. It collects all arguments first using [`Formatter::push_arg`]
+/// and then performs the formatting in one operation with the [`Formatter::format`] method.
 ///
 /// # Examples
 ///
@@ -1038,12 +1037,12 @@ impl<'s> From<&'s FormatString> for Formatter<'s> {
 impl<'s> Formatter<'s> {
     /// Adds an argument to be formatted.
     ///
-    /// This method collects arguments that will be formatted when `format` is called.
+    /// This method collects arguments that will be formatted when [`Formatter::format`] is called.
     /// It supports method chaining for convenient use.
     ///
     /// # Arguments
     ///
-    /// * `arg` - The argument to format, which must implement `DynDisplay`
+    /// * `arg` - The argument to format, which must implement [`DynDisplay`]
     ///
     /// # Returns
     ///
@@ -1069,7 +1068,7 @@ impl<'s> Formatter<'s> {
     /// Applies the format specifications to all collected arguments.
     ///
     /// This method performs the actual formatting after all arguments have been collected
-    /// with `push_arg`. It verifies that the number of arguments matches the number of
+    /// with [`Formatter::push_arg`]. It verifies that the number of arguments matches the number of
     /// format specifications in the format string.
     ///
     /// # Returns
@@ -1160,13 +1159,13 @@ impl<'s> Formatter<'s> {
 /// Dynamically formats values according to a format string.
 ///
 /// The `dformat!` macro provides functionality similar to Rust's standard `format!` macro,
-/// but with dynamic formatting capabilities. It uses a pre-parsed `FormatString` to
+/// but with dynamic formatting capabilities. It uses a pre-parsed [`FormatString`] to
 /// apply format specifications to values at runtime.
 ///
 /// # Syntax
 ///
 /// The macro takes two arguments:
-/// - A reference to a `FormatString` that has been created from a format string
+/// - A reference to a [`FormatString`] that has been created from a format string
 /// - A list of arguments to format
 ///
 /// ```ignore
@@ -1195,7 +1194,7 @@ impl<'s> Formatter<'s> {
 /// assert_eq!(result, "   42, 3.14");
 /// ```
 ///
-/// Using with custom types that implement `DynDisplay`:
+/// Using with custom types that implement [`DynDisplay`]:
 ///
 /// ```
 /// use dyf::{FormatString, dformat, DynDisplay, Error, FormatSpec};
@@ -1220,10 +1219,8 @@ impl<'s> Formatter<'s> {
 ///
 /// # Errors
 ///
-/// The macro returns a `Result<String, Error>` which may contain:
-/// - `Error::FormatVsArgs` if the number of arguments doesn't match the format specifications
-/// - `Error::UnsupportedSpec` if an unsupported format specifier is used
-/// - Other formatting errors that may occur during the dynamic formatting process
+/// The macro returns a `Result<String, Error>`. Any error might be one
+/// of the [`Error`] variant.
 ///
 /// # Performance Considerations
 ///
@@ -1244,10 +1241,9 @@ impl<'s> Formatter<'s> {
 /// While similar to Rust's standard `format!` macro, `dformat!` provides:
 /// - Dynamic formatting capabilities through the `DynDisplay` trait
 /// - The ability to pre-parse format strings for reuse
-/// - More flexible error handling
 ///
 /// However, for simple cases where you don't need these features, the standard `format!`
-/// macro may be more convenient.
+/// macro is recommended.
 #[macro_export]
 macro_rules! dformat {
     ($fmt: expr, $($arg: expr),*) => {
