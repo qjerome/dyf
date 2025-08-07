@@ -1,6 +1,6 @@
 [package]
 name = "dyf"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 keywords = ["dynamic", "format", "string"]
 description = "Dynamic string formatting library for Rust supporting all standard format specifiers"
