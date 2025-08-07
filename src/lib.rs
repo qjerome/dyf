@@ -628,13 +628,13 @@ pub struct FormatSpec {
 impl Display for FormatSpec {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(c) = self.fill {
-            write!(f, "{}", c)?;
+            write!(f, "{c}")?;
         }
         if let Some(a) = self.align {
-            write!(f, "{}", a)?;
+            write!(f, "{a}")?;
         }
         if let Some(s) = self.sign {
-            write!(f, "{}", s)?;
+            write!(f, "{s}")?;
         }
         if self.alternate {
             write!(f, "#")?;
@@ -643,10 +643,10 @@ impl Display for FormatSpec {
             write!(f, "0")?;
         }
         if let Some(w) = self.width {
-            write!(f, "{}", w)?;
+            write!(f, "{w}")?;
         }
         if let Some(p) = self.precision {
-            write!(f, ".{}", p)?;
+            write!(f, ".{p}")?;
         }
         write!(f, "{}", self.ty)
     }
@@ -777,7 +777,7 @@ impl Display for Format {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{{")?;
         if let Some(a) = self.arg.as_ref() {
-            write!(f, "{}", a)?;
+            write!(f, "{a}")?;
         }
 
         if !self.spec.is_empty() {
@@ -1294,13 +1294,13 @@ mod tests {
         ] {
             let fmt = Format::from_pair(
                 FmtParser::parse(Rule::format, f)
-                    .inspect_err(|e| println!("{}", e))
+                    .inspect_err(|e| println!("{e}"))
                     .unwrap()
                     .next()
                     .unwrap(),
             );
 
-            assert_eq!(f, format!("{}", fmt));
+            assert_eq!(f, format!("{fmt}"));
         }
     }
 
@@ -1455,20 +1455,11 @@ mod tests {
         // Pointer formatting
         let x = 42;
         let ptr = &x as *const i32;
-        assert_eq!(format!("{:p}", ptr), dformat_lit!("{:p}", ptr).unwrap());
-        assert_eq!(format!("{:10p}", ptr), dformat_lit!("{:10p}", ptr).unwrap());
-        assert_eq!(
-            format!("{:<10p}", ptr),
-            dformat_lit!("{:<10p}", ptr).unwrap()
-        );
-        assert_eq!(
-            format!("{:>10p}", ptr),
-            dformat_lit!("{:>10p}", ptr).unwrap()
-        );
-        assert_eq!(
-            format!("{:^10p}", ptr),
-            dformat_lit!("{:^10p}", ptr).unwrap()
-        );
+        assert_eq!(format!("{ptr:p}"), dformat_lit!("{:p}", ptr).unwrap());
+        assert_eq!(format!("{ptr:10p}"), dformat_lit!("{:10p}", ptr).unwrap());
+        assert_eq!(format!("{ptr:<10p}"), dformat_lit!("{:<10p}", ptr).unwrap());
+        assert_eq!(format!("{ptr:>10p}"), dformat_lit!("{:>10p}", ptr).unwrap());
+        assert_eq!(format!("{ptr:^10p}"), dformat_lit!("{:^10p}", ptr).unwrap());
     }
 
     #[test]
@@ -1510,35 +1501,35 @@ mod tests {
         let ip_addr_v6 = IpAddr::V6(ipv6_addr);
 
         assert_eq!(
-            format!("{}", ipv4_addr),
+            format!("{ipv4_addr}"),
             dformat_lit!("{}", ipv4_addr).unwrap()
         );
         assert_eq!(
-            format!("{:?}", ipv4_addr),
+            format!("{ipv4_addr:?}"),
             dformat_lit!("{:?}", ipv4_addr).unwrap()
         );
         assert_eq!(
-            format!("{}", ipv6_addr),
+            format!("{ipv6_addr}"),
             dformat_lit!("{}", ipv6_addr).unwrap()
         );
         assert_eq!(
-            format!("{:?}", ipv6_addr),
+            format!("{ipv6_addr:?}"),
             dformat_lit!("{:?}", ipv6_addr).unwrap()
         );
         assert_eq!(
-            format!("{}", ip_addr_v4),
+            format!("{ip_addr_v4}"),
             dformat_lit!("{}", ip_addr_v4).unwrap()
         );
         assert_eq!(
-            format!("{:?}", ip_addr_v4),
+            format!("{ip_addr_v4:?}"),
             dformat_lit!("{:?}", ip_addr_v4).unwrap()
         );
         assert_eq!(
-            format!("{}", ip_addr_v6),
+            format!("{ip_addr_v6}"),
             dformat_lit!("{}", ip_addr_v6).unwrap()
         );
         assert_eq!(
-            format!("{:?}", ip_addr_v6),
+            format!("{ip_addr_v6:?}"),
             dformat_lit!("{:?}", ip_addr_v6).unwrap()
         );
 
@@ -1548,27 +1539,27 @@ mod tests {
         let socket_addr = SocketAddr::V4(socket_addr_v4);
 
         assert_eq!(
-            format!("{}", socket_addr_v4),
+            format!("{socket_addr_v4}"),
             dformat_lit!("{}", socket_addr_v4).unwrap()
         );
         assert_eq!(
-            format!("{:?}", socket_addr_v4),
+            format!("{socket_addr_v4:?}"),
             dformat_lit!("{:?}", socket_addr_v4).unwrap()
         );
         assert_eq!(
-            format!("{}", socket_addr_v6),
+            format!("{socket_addr_v6}"),
             dformat_lit!("{}", socket_addr_v6).unwrap()
         );
         assert_eq!(
-            format!("{:?}", socket_addr_v6),
+            format!("{socket_addr_v6:?}"),
             dformat_lit!("{:?}", socket_addr_v6).unwrap()
         );
         assert_eq!(
-            format!("{}", socket_addr),
+            format!("{socket_addr}"),
             dformat_lit!("{}", socket_addr).unwrap()
         );
         assert_eq!(
-            format!("{:?}", socket_addr),
+            format!("{socket_addr:?}"),
             dformat_lit!("{:?}", socket_addr).unwrap()
         );
     }
@@ -1581,15 +1572,15 @@ mod tests {
         let instant = Instant::now();
 
         assert_eq!(
-            format!("{:?}", duration),
+            format!("{duration:?}"),
             dformat_lit!("{:?}", duration).unwrap()
         );
         assert_eq!(
-            format!("{:?}", system_time),
+            format!("{system_time:?}"),
             dformat_lit!("{:?}", system_time).unwrap()
         );
         assert_eq!(
-            format!("{:?}", instant),
+            format!("{instant:?}"),
             dformat_lit!("{:?}", instant).unwrap()
         );
     }
@@ -1600,9 +1591,9 @@ mod tests {
         let path = Path::new("/path/to/file");
         let path_buf = PathBuf::from("/path/to/file");
 
-        assert_eq!(format!("{:?}", path), dformat_lit!("{:?}", path).unwrap());
+        assert_eq!(format!("{path:?}"), dformat_lit!("{:?}", path).unwrap());
         assert_eq!(
-            format!("{:?}", path_buf),
+            format!("{path_buf:?}"),
             dformat_lit!("{:?}", path_buf).unwrap()
         );
     }
@@ -1614,13 +1605,10 @@ mod tests {
         let os_str: &OsStr = os_string.as_os_str();
 
         assert_eq!(
-            format!("{:?}", os_string),
+            format!("{os_string:?}"),
             dformat_lit!("{:?}", os_string).unwrap()
         );
-        assert_eq!(
-            format!("{:?}", os_str),
-            dformat_lit!("{:?}", os_str).unwrap()
-        );
+        assert_eq!(format!("{os_str:?}"), dformat_lit!("{:?}", os_str).unwrap());
     }
 
     #[test]
@@ -1631,9 +1619,9 @@ mod tests {
         let arc = Arc::new(42);
         let cow_str: Cow<'_, str> = Cow::Borrowed("Hello");
 
-        assert_eq!(format!("{}", boxed), dformat_lit!("{}", boxed).unwrap());
-        assert_eq!(format!("{}", rc), dformat_lit!("{}", rc).unwrap());
-        assert_eq!(format!("{}", arc), dformat_lit!("{}", arc).unwrap());
-        assert_eq!(format!("{}", cow_str), dformat_lit!("{}", cow_str).unwrap());
+        assert_eq!(format!("{boxed}"), dformat_lit!("{}", boxed).unwrap());
+        assert_eq!(format!("{rc}"), dformat_lit!("{}", rc).unwrap());
+        assert_eq!(format!("{arc}"), dformat_lit!("{}", arc).unwrap());
+        assert_eq!(format!("{cow_str}"), dformat_lit!("{}", cow_str).unwrap());
     }
 }

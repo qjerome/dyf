@@ -17,9 +17,9 @@ macro_rules! impl_debug {
                 match f.ty {
                     FmtType::Debug => {
                         if f.alternate {
-                            Ok(format!("{:#?}", self))
+                            Ok(format!("{self:#?}"))
                         } else {
-                            Ok(format!("{:?}", self))
+                            Ok(format!("{self:?}"))
                         }
                     }
                     FmtType::Default
@@ -46,12 +46,12 @@ macro_rules! impl_debug_display {
                 match f.ty {
                     FmtType::Debug => {
                         if f.alternate {
-                            Ok(format!("{:#?}", self))
+                            Ok(format!("{self:#?}"))
                         } else {
-                            Ok(format!("{:?}", self))
+                            Ok(format!("{self:?}"))
                         }
                     }
-                    FmtType::Default => Ok(format!("{}", self)),
+                    FmtType::Default => Ok(format!("{self}")),
                     FmtType::DebugLowHex
                     | FmtType::DebugUpHex
                     | FmtType::LowerHex
@@ -73,12 +73,12 @@ impl DynDisplay for char {
         match f.ty {
             FmtType::Debug => {
                 if f.alternate {
-                    Ok(format!("{:#?}", self))
+                    Ok(format!("{self:#?}"))
                 } else {
-                    Ok(format!("{:?}", self))
+                    Ok(format!("{self:?}"))
                 }
             }
-            FmtType::Default => Ok(format!("{}", self)),
+            FmtType::Default => Ok(format!("{self}")),
             FmtType::DebugLowHex
             | FmtType::DebugUpHex
             | FmtType::LowerHex
@@ -101,12 +101,12 @@ impl<T> DynDisplay for *const T {
         match f.ty {
             FmtType::Debug => {
                 if f.alternate {
-                    Ok(format!("{:#?}", ptr))
+                    Ok(format!("{ptr:#?}"))
                 } else {
-                    Ok(format!("{:?}", ptr))
+                    Ok(format!("{ptr:?}"))
                 }
             }
-            FmtType::Ptr => Ok(format!("{:p}", ptr)),
+            FmtType::Ptr => Ok(format!("{ptr:p}")),
             FmtType::Default
             | FmtType::DebugLowHex
             | FmtType::DebugUpHex
@@ -127,12 +127,12 @@ impl<T> DynDisplay for *mut T {
         match f.ty {
             FmtType::Debug => {
                 if f.alternate {
-                    Ok(format!("{:#?}", ptr))
+                    Ok(format!("{ptr:#?}"))
                 } else {
-                    Ok(format!("{:?}", ptr))
+                    Ok(format!("{ptr:?}"))
                 }
             }
-            FmtType::Ptr => Ok(format!("{:p}", ptr)),
+            FmtType::Ptr => Ok(format!("{ptr:p}")),
             FmtType::Default
             | FmtType::DebugLowHex
             | FmtType::DebugUpHex
@@ -152,34 +152,34 @@ impl DynDisplay for &str {
         match f.ty {
             FmtType::Debug => {
                 if f.alternate {
-                    Ok(format!("{:#?}", self))
+                    Ok(format!("{self:#?}"))
                 } else {
-                    Ok(format!("{:?}", self))
+                    Ok(format!("{self:?}"))
                 }
             }
-            FmtType::DebugLowHex => Ok(format!("{:x?}", self)),
-            FmtType::DebugUpHex => Ok(format!("{:X?}", self)),
+            FmtType::DebugLowHex => Ok(format!("{self:x?}")),
+            FmtType::DebugUpHex => Ok(format!("{self:X?}")),
             FmtType::Default => match (f.width, f.precision) {
                 (None, None) => Ok(self.to_string()),
                 (Some(w), None) => match f.align {
-                    Some(Align::Left) => Ok(format!("{:<1$}", self, w)),
-                    Some(Align::Center) => Ok(format!("{:^1$}", self, w)),
-                    Some(Align::Right) => Ok(format!("{:>1$}", self, w)),
-                    None => Ok(format!("{:1$}", self, w)),
+                    Some(Align::Left) => Ok(format!("{self:<w$}")),
+                    Some(Align::Center) => Ok(format!("{self:^w$}")),
+                    Some(Align::Right) => Ok(format!("{self:>w$}")),
+                    None => Ok(format!("{self:w$}")),
                 },
-                (None, Some(p)) => Ok(format!("{:.1$}", self, p)),
+                (None, Some(p)) => Ok(format!("{self:.p$}")),
                 (Some(w), Some(p)) => match f.align {
-                    Some(Align::Left) => Ok(format!("{:<1$.2$}", self, w, p)),
-                    Some(Align::Center) => Ok(format!("{:^1$.2$}", self, w, p)),
-                    Some(Align::Right) => Ok(format!("{:>1$.2$}", self, w, p)),
-                    None => Ok(format!("{:1$.2$}", self, w, p)),
+                    Some(Align::Left) => Ok(format!("{self:<w$.p$}")),
+                    Some(Align::Center) => Ok(format!("{self:^w$.p$}")),
+                    Some(Align::Right) => Ok(format!("{self:>w$.p$}")),
+                    None => Ok(format!("{self:w$.p$}")),
                 },
             },
             FmtType::Ptr => {
                 if f.alternate {
-                    Ok(format!("{:#p}", self))
+                    Ok(format!("{self:#p}"))
                 } else {
-                    Ok(format!("{:p}", self))
+                    Ok(format!("{self:p}"))
                 }
             }
             FmtType::LowerHex
