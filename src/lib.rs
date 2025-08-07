@@ -765,7 +765,7 @@ impl FormatSpec {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Format {
     start: usize,
     end: usize,
@@ -856,7 +856,7 @@ impl Format {
 /// let fmt_str = fmt.to_string_lossy();
 /// let owned_str = fmt.into_string();
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FormatString {
     s: String,
     fmts: Vec<Format>,
