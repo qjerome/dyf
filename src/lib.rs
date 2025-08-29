@@ -7,7 +7,7 @@
 //!
 //! ## Features
 //!
-//! - Support for all standard Rust format specifiers
+//! - Support for (almost) all standard Rust format specifiers
 //! - Dynamic formatting for custom types via the `DynDisplay` trait
 //! - Macro support for convenient usage
 //! - Support for various standard library types
@@ -159,7 +159,7 @@
 //!
 //! ## Supported Format Specifiers
 //!
-//! The crate supports all standard Rust format specifiers, including:
+//! The crate supports several standard Rust format specifiers, including:
 //!
 //! | Category | Specifiers |
 //! |----------|------------|
