@@ -20,7 +20,17 @@
 //! cargo add dyf
 //! ```
 //!
-//! ## Examples
+//! ### Serde Support
+//!
+//! The `dyf` crate provides optional support for serialization and deserialization using the `serde` crate.
+//! To enable this feature, add the `serde` feature when adding the crate to your project:
+//!
+//! ```sh
+//! cargo add dyf --features serde
+//! ```
+//!
+//! Once the `serde` feature is enabled, the `FormatString` structure derives the `Serialize` and `Deserialize` traits.
+//! This allows you to easily serialize and deserialize `FormatString` instances using the `serde` crate.
 //!
 //! ### Basic Formatting
 //!
