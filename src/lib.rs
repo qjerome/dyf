@@ -211,6 +211,9 @@ use std::{
 use pest::{Parser, iterators::Pair};
 use thiserror::Error;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 mod imp;
 mod parser;
 use parser::{FmtParser, Rule};
@@ -425,6 +428,7 @@ pub trait DynDisplay {
 ///     }
 /// }
 /// ```
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy)]
 pub enum FmtType {
     /// Default formatting for the type.
@@ -509,6 +513,7 @@ impl Display for FmtType {
 /// The [`Align`] enum determines how text should be aligned when a width is specified
 /// in a format specification. It controls whether the text is left-aligned, right-aligned,
 /// or centered within the allocated space.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy)]
 pub enum Align {
     /// Left-align the text within the field.
@@ -551,6 +556,7 @@ impl Display for Align {
 /// In format strings, these correspond to:
 /// - `+` for `Sign::Positive` (show signs for both positive and negative numbers)
 /// - `-` for `Sign::Negative` (show signs only for negative numbers, default behavior)
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy)]
 pub enum Sign {
     /// Always show the sign for numeric values.
@@ -586,6 +592,7 @@ impl Display for Sign {
 ///
 /// A format specification in a string typically looks like:
 /// `:[fill][align][sign][#][0][width][.precision][type]`
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct FormatSpec {
     /// The fill character to use for padding.
@@ -765,6 +772,7 @@ impl FormatSpec {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 struct Format {
     start: usize,
@@ -856,6 +864,7 @@ impl Format {
 /// let fmt_str = fmt.to_string_lossy();
 /// let owned_str = fmt.into_string();
 /// ```
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone)]
 pub struct FormatString {
     s: String,
@@ -1623,5 +1632,13 @@ mod tests {
         assert_eq!(format!("{rc}"), dformat_lit!("{}", rc).unwrap());
         assert_eq!(format!("{arc}"), dformat_lit!("{}", arc).unwrap());
         assert_eq!(format!("{cow_str}"), dformat_lit!("{}", cow_str).unwrap());
+    }
+
+    #[test]
+    fn test_serde() {
+        let fs = FormatString::new_from_str("{}").unwrap();
+        let js_fs = serde_json::to_string(&fs).unwrap();
+        let fs: FormatString = serde_json::from_str(&js_fs).unwrap();
+        assert_eq!(format!("{}", 42), dformat!(&fs, 42).unwrap())
     }
 }
