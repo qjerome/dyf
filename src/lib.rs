@@ -209,11 +209,12 @@
 //!
 //! ## License
 //!
-//! This project is licensed under the GNU General Public License v3.0 (GPL-3.0).
-//! By using this software, you agree to the terms and conditions of this license.
+//! This project is dual-licensed under either:
+//! - GNU General Public License v3.0
+//! - BSD 2-Clause License
 //!
-//! The full license text is available in the LICENSE file in the project root or at:
-//! [https://www.gnu.org/licenses/gpl-3.0.html](https://www.gnu.org/licenses/gpl-3.0.html)
+//! You may choose either license at your option.
+//! See LICENSE-GPL-3 and LICENSE-BSD-2-Clause files for full text.
 
 use std::{
     borrow::Cow,

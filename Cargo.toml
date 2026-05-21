@@ -7,7 +7,7 @@ description = "Dynamic string formatting library for Rust supporting all standar
 documentation = "https://docs.rs/dyf"
 readme = "README.md"
 repository = "https://github.com/qjerome/dyf"
-license = "GPL-3.0"
+license = "GPL-3.0 OR BSD-2-Clause"
 keywords = ["dynamic", "format", "formatting", "runtime", "string"]
 
 [dependencies]
