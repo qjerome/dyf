@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     ffi::{OsStr, OsString},
+    fmt::Write,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
     path::{Path, PathBuf},
     rc::Rc,
@@ -8,32 +9,23 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use crate::{Align, DynDisplay, Error, FmtType, FormatSpec, Sign};
+use crate::{Align, DynDisplay, Error, FmtType, Formatter, Sign};
 
 macro_rules! impl_debug {
     ($ty:ty) => {
         impl DynDisplay for $ty {
-            fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
-                match f.ty {
+            fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
+                f.set_default_align(Align::Left);
+                match f.fmt_type() {
                     FmtType::Debug => {
-                        if f.alternate {
-                            Ok(format!("{self:#?}"))
+                        if f.alternate() {
+                            Ok(write!(f, "{self:#?}")?)
                         } else {
-                            Ok(format!("{self:?}"))
+                            Ok(write!(f, "{self:?}")?)
                         }
                     }
-                    FmtType::Default
-                    | FmtType::DebugLowHex
-                    | FmtType::DebugUpHex
-                    | FmtType::LowerHex
-                    | FmtType::UpperHex
-                    | FmtType::Octal
-                    | FmtType::Ptr
-                    | FmtType::Bin
-                    | FmtType::LowExp
-                    | FmtType::UpperExp => Err(Error::UnsupportedSpec(f.clone())),
+                    _ => Err(Error::UnsupportedSpec(f.spec().clone())),
                 }
-                .map(|s| f.fill_and_align(s, Align::Left))
             }
         }
     };
@@ -42,166 +34,121 @@ macro_rules! impl_debug {
 macro_rules! impl_debug_display {
     ($ty:ty) => {
         impl DynDisplay for $ty {
-            fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
-                match f.ty {
+            fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
+                f.set_default_align(Align::Left);
+                match f.fmt_type() {
                     FmtType::Debug => {
-                        if f.alternate {
-                            Ok(format!("{self:#?}"))
+                        if f.alternate() {
+                            Ok(write!(f, "{self:#?}")?)
                         } else {
-                            Ok(format!("{self:?}"))
+                            Ok(write!(f, "{self:?}")?)
                         }
                     }
-                    FmtType::Default => Ok(format!("{self}")),
-                    FmtType::DebugLowHex
-                    | FmtType::DebugUpHex
-                    | FmtType::LowerHex
-                    | FmtType::UpperHex
-                    | FmtType::Octal
-                    | FmtType::Ptr
-                    | FmtType::Bin
-                    | FmtType::LowExp
-                    | FmtType::UpperExp => Err(Error::UnsupportedSpec(f.clone())),
+                    FmtType::Default => Ok(write!(f, "{self}")?),
+                    _ => Err(Error::UnsupportedSpec(f.spec().clone())),
                 }
-                .map(|s| f.fill_and_align(s, Align::Left))
             }
         }
     };
 }
 
 impl DynDisplay for char {
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
-        match f.ty {
+    fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
+        f.set_default_align(Align::Left);
+        match f.fmt_type() {
             FmtType::Debug => {
-                if f.alternate {
-                    Ok(format!("{self:#?}"))
+                if f.alternate() {
+                    Ok(write!(f, "{self:#?}")?)
                 } else {
-                    Ok(format!("{self:?}"))
+                    Ok(write!(f, "{self:?}")?)
                 }
             }
-            FmtType::Default => Ok(format!("{self}")),
-            FmtType::DebugLowHex
-            | FmtType::DebugUpHex
-            | FmtType::LowerHex
-            | FmtType::UpperHex
-            | FmtType::Octal
-            | FmtType::Ptr
-            | FmtType::Bin
-            | FmtType::LowExp
-            | FmtType::UpperExp => Err(Error::UnsupportedSpec(f.clone())),
+            FmtType::Default => Ok(write!(f, "{self}")?),
+            _ => Err(Error::UnsupportedSpec(f.spec().clone())),
         }
-        .map(|s| f.fill_and_align(s, Align::Left))
     }
 }
 
 impl_debug_display!(bool);
 
 impl<T> DynDisplay for *const T {
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
+    fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
         let ptr = *self;
-        match f.ty {
+        f.set_default_align(Align::Right);
+        match f.fmt_type() {
             FmtType::Debug => {
-                if f.alternate {
-                    Ok(format!("{ptr:#?}"))
+                if f.alternate() {
+                    Ok(write!(f, "{ptr:#?}")?)
                 } else {
-                    Ok(format!("{ptr:?}"))
+                    Ok(write!(f, "{ptr:?}")?)
                 }
             }
-            FmtType::Ptr => Ok(format!("{ptr:p}")),
-            FmtType::Default
-            | FmtType::DebugLowHex
-            | FmtType::DebugUpHex
-            | FmtType::LowerHex
-            | FmtType::UpperHex
-            | FmtType::Octal
-            | FmtType::Bin
-            | FmtType::LowExp
-            | FmtType::UpperExp => Err(Error::UnsupportedSpec(f.clone())),
+            FmtType::Ptr => Ok(write!(f, "{ptr:p}")?),
+            _ => Err(Error::UnsupportedSpec(f.spec().clone())),
         }
-        .map(|s| f.fill_and_align(s, Align::Right))
     }
 }
 
 impl<T> DynDisplay for *mut T {
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
+    fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
         let ptr = *self;
-        match f.ty {
+        f.set_default_align(Align::Right);
+        match f.fmt_type() {
             FmtType::Debug => {
-                if f.alternate {
-                    Ok(format!("{ptr:#?}"))
+                if f.alternate() {
+                    Ok(write!(f, "{ptr:#?}")?)
                 } else {
-                    Ok(format!("{ptr:?}"))
+                    Ok(write!(f, "{ptr:?}")?)
                 }
             }
-            FmtType::Ptr => Ok(format!("{ptr:p}")),
-            FmtType::Default
-            | FmtType::DebugLowHex
-            | FmtType::DebugUpHex
-            | FmtType::LowerHex
-            | FmtType::UpperHex
-            | FmtType::Octal
-            | FmtType::Bin
-            | FmtType::LowExp
-            | FmtType::UpperExp => Err(Error::UnsupportedSpec(f.clone())),
+            FmtType::Ptr => Ok(write!(f, "{ptr:p}")?),
+            _ => Err(Error::UnsupportedSpec(f.spec().clone())),
         }
-        .map(|s| f.fill_and_align(s, Align::Right))
     }
 }
 
 impl DynDisplay for &str {
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
-        match f.ty {
+    fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
+        f.set_default_align(Align::Left);
+        match f.fmt_type() {
             FmtType::Debug => {
-                if f.alternate {
-                    Ok(format!("{self:#?}"))
+                if f.alternate() {
+                    Ok(write!(f, "{self:#?}")?)
                 } else {
-                    Ok(format!("{self:?}"))
+                    Ok(write!(f, "{self:?}")?)
                 }
             }
-            FmtType::DebugLowHex => Ok(format!("{self:x?}")),
-            FmtType::DebugUpHex => Ok(format!("{self:X?}")),
-            FmtType::Default => match (f.width, f.precision) {
-                (None, None) => Ok(self.to_string()),
-                (Some(w), None) => match f.align {
-                    Some(Align::Left) => Ok(format!("{self:<w$}")),
-                    Some(Align::Center) => Ok(format!("{self:^w$}")),
-                    Some(Align::Right) => Ok(format!("{self:>w$}")),
-                    None => Ok(format!("{self:w$}")),
-                },
-                (None, Some(p)) => Ok(format!("{self:.p$}")),
-                (Some(w), Some(p)) => match f.align {
-                    Some(Align::Left) => Ok(format!("{self:<w$.p$}")),
-                    Some(Align::Center) => Ok(format!("{self:^w$.p$}")),
-                    Some(Align::Right) => Ok(format!("{self:>w$.p$}")),
-                    None => Ok(format!("{self:w$.p$}")),
-                },
-            },
+            FmtType::DebugLowHex => Ok(write!(f, "{self:x?}")?),
+            FmtType::DebugUpHex => Ok(write!(f, "{self:X?}")?),
+            FmtType::Default => {
+                if let Some(p) = f.precision() {
+                    Ok(write!(f, "{self:.p$}")?)
+                } else {
+                    Ok(write!(f, "{}", self)?)
+                }
+            }
             FmtType::Ptr => {
-                if f.alternate {
-                    Ok(format!("{self:#p}"))
+                if f.alternate() {
+                    Ok(write!(f, "{self:#p}")?)
                 } else {
-                    Ok(format!("{self:p}"))
+                    Ok(write!(f, "{self:p}")?)
                 }
             }
-            FmtType::LowerHex
-            | FmtType::UpperHex
-            | FmtType::Bin
-            | FmtType::Octal
-            | FmtType::LowExp
-            | FmtType::UpperExp => Err(Error::UnsupportedSpec(f.clone())),
+            _ => Err(Error::UnsupportedSpec(f.spec().clone())),
         }
     }
 }
 
 impl DynDisplay for str {
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
+    fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
         DynDisplay::dyn_fmt(&self, f)
     }
 }
 
 impl DynDisplay for String {
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
-        if matches!(f.ty, FmtType::Ptr) {
-            return Err(Error::UnsupportedSpec(f.clone()));
+    fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
+        if matches!(f.fmt_type(), FmtType::Ptr) {
+            return Err(Error::UnsupportedSpec(f.spec().clone()));
         }
         DynDisplay::dyn_fmt(&self.as_str(), f)
     }
@@ -211,60 +158,56 @@ macro_rules! impl_dyn_display_float {
     ($ty: ty) => {
         impl DynDisplay for $ty {
             #[inline]
-            fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
-                match f.ty {
+            fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
+                f.set_default_align(Align::Right);
+                match f.fmt_type() {
                     FmtType::Debug => {
-                        if f.alternate {
-                            Ok(format!("{:#?}", self))
+                        if f.alternate() {
+                            Ok(write!(f, "{:#?}", self)?)
                         } else {
-                            Ok(format!("{:?}", self))
+                            Ok(write!(f, "{:?}", self)?)
                         }
                     }
-                    FmtType::DebugUpHex => Ok(format!("{:X?}", self)),
-                    FmtType::DebugLowHex => Ok(format!("{:x?}", self)),
-                    FmtType::Default => match (f.precision, f.sign) {
-                        (None, None) => Ok(format!("{}", self)),
-                        (Some(p), None) => Ok(format!("{:.1$}", self, p)),
+                    FmtType::DebugUpHex => Ok(write!(f, "{:X?}", self)?),
+                    FmtType::DebugLowHex => Ok(write!(f, "{:x?}", self)?),
+                    FmtType::Default => match (f.precision(), f.sign()) {
+                        (None, None) => Ok(write!(f, "{}", self)?),
+                        (Some(p), None) => Ok(write!(f, "{:.1$}", self, p)?),
                         (None, Some(s)) => match s {
-                            Sign::Positive => Ok(format!("{:+}", self)),
-                            Sign::Negative => Ok(format!("{:-}", self)),
+                            Sign::Positive => Ok(write!(f, "{:+}", self)?),
+                            Sign::Negative => Ok(write!(f, "{:-}", self)?),
                         },
                         (Some(p), Some(s)) => match s {
-                            Sign::Positive => Ok(format!("{:+.1$}", self, p)),
-                            Sign::Negative => Ok(format!("{:-.1$}", self, p)),
+                            Sign::Positive => Ok(write!(f, "{:+.1$}", self, p)?),
+                            Sign::Negative => Ok(write!(f, "{:-.1$}", self, p)?),
                         },
                     },
-                    FmtType::LowExp => match (f.precision, f.sign) {
-                        (None, None) => Ok(format!("{:e}", self)),
-                        (Some(p), None) => Ok(format!("{:.1$e}", self, p)),
+                    FmtType::LowExp => match (f.precision(), f.sign()) {
+                        (None, None) => Ok(write!(f, "{:e}", self)?),
+                        (Some(p), None) => Ok(write!(f, "{:.1$e}", self, p)?),
                         (None, Some(s)) => match s {
-                            Sign::Positive => Ok(format!("{:+e}", self)),
-                            Sign::Negative => Ok(format!("{:-e}", self)),
+                            Sign::Positive => Ok(write!(f, "{:+e}", self)?),
+                            Sign::Negative => Ok(write!(f, "{:-e}", self)?),
                         },
                         (Some(p), Some(s)) => match s {
-                            Sign::Positive => Ok(format!("{:+.1$e}", self, p)),
-                            Sign::Negative => Ok(format!("{:-.1$e}", self, p)),
+                            Sign::Positive => Ok(write!(f, "{:+.1$e}", self, p)?),
+                            Sign::Negative => Ok(write!(f, "{:-.1$e}", self, p)?),
                         },
                     },
-                    FmtType::UpperExp => match (f.precision, f.sign) {
-                        (None, None) => Ok(format!("{:E}", self)),
-                        (Some(p), None) => Ok(format!("{:.1$E}", self, p)),
+                    FmtType::UpperExp => match (f.precision(), f.sign()) {
+                        (None, None) => Ok(write!(f, "{:E}", self)?),
+                        (Some(p), None) => Ok(write!(f, "{:.1$E}", self, p)?),
                         (None, Some(s)) => match s {
-                            Sign::Positive => Ok(format!("{:+E}", self)),
-                            Sign::Negative => Ok(format!("{:-E}", self)),
+                            Sign::Positive => Ok(write!(f, "{:+E}", self)?),
+                            Sign::Negative => Ok(write!(f, "{:-E}", self)?),
                         },
                         (Some(p), Some(s)) => match s {
-                            Sign::Positive => Ok(format!("{:+.1$E}", self, p)),
-                            Sign::Negative => Ok(format!("{:-.1$E}", self, p)),
+                            Sign::Positive => Ok(write!(f, "{:+.1$E}", self, p)?),
+                            Sign::Negative => Ok(write!(f, "{:-.1$E}", self, p)?),
                         },
                     },
-                    FmtType::Ptr
-                    | FmtType::Bin
-                    | FmtType::LowerHex
-                    | FmtType::Octal
-                    | FmtType::UpperHex => Err(Error::UnsupportedSpec(f.clone())),
+                    _ => Err(Error::UnsupportedSpec(f.spec().clone())),
                 }
-                .map(|s| f.fill_and_align(s, Align::Right))
             }
         }
     };
@@ -276,96 +219,92 @@ impl_dyn_display_float!(f64);
 macro_rules! impl_dyn_display_int {
     ($ty: ty) => {
         impl DynDisplay for $ty {
-            fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
-                match f.ty {
-                    FmtType::Default => match (f.alternate, f.zero) {
+            fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
+                f.set_default_align(Align::Right);
+                match f.fmt_type() {
+                    FmtType::Default => match (f.alternate(), f.zero()) {
                         (true, true) => {
-                            if let Some(w) = f.width {
-                                Ok(format!("{:#01$}", self, w))
+                            if let Some(w) = f.width() {
+                                write!(f, "{:#01$}", self, w)
                             } else {
-                                Ok(format!("{:#0}", self))
+                                write!(f, "{:#0}", self)
                             }
                         }
-                        (true, false) => Ok(format!("{:#}", self)),
+                        (true, false) => write!(f, "{:#}", self),
                         (false, true) => {
-                            if let Some(w) = f.width {
-                                Ok(format!("{:01$}", self, w))
+                            if let Some(w) = f.width() {
+                                write!(f, "{:01$}", self, w)
                             } else {
-                                Ok(format!("{:0}", self))
+                                write!(f, "{:0}", self)
                             }
                         }
                         (false, false) => {
-                            // sign is used only if not alternate / zero
-                            if let Some(s) = f.sign {
+                            if let Some(s) = f.sign() {
                                 match s {
-                                    Sign::Positive => Ok(format!("{:+}", self)),
-                                    Sign::Negative => Ok(format!("{:-}", self)),
+                                    Sign::Positive => write!(f, "{:+}", self),
+                                    Sign::Negative => write!(f, "{:-}", self),
                                 }
                             } else {
-                                Ok(format!("{:}", self))
+                                write!(f, "{:}", self)
                             }
                         }
                     },
                     FmtType::Debug => {
-                        if f.alternate {
-                            Ok(format!("{:#?}", self))
+                        if f.alternate() {
+                            write!(f, "{:#?}", self)
                         } else {
-                            Ok(format!("{:?}", self))
+                            write!(f, "{:?}", self)
                         }
                     }
-                    FmtType::LowerHex => match (f.alternate, f.zero) {
-                        (true, true) => Ok(format!("{:#0x}", self)),
-                        (true, false) => Ok(format!("{:#x}", self)),
-                        (false, true) => Ok(format!("{:0x}", self)),
-                        (false, false) => Ok(format!("{:x}", self)),
+                    FmtType::LowerHex => match (f.alternate(), f.zero()) {
+                        (true, true) => write!(f, "{:#0x}", self),
+                        (true, false) => write!(f, "{:#x}", self),
+                        (false, true) => write!(f, "{:0x}", self),
+                        (false, false) => write!(f, "{:x}", self),
                     },
-                    FmtType::UpperHex => match (f.alternate, f.zero) {
-                        (true, true) => Ok(format!("{:#0X}", self)),
-                        (true, false) => Ok(format!("{:#X}", self)),
-                        (false, true) => Ok(format!("{:0X}", self)),
-                        (false, false) => Ok(format!("{:X}", self)),
+                    FmtType::UpperHex => match (f.alternate(), f.zero()) {
+                        (true, true) => write!(f, "{:#0X}", self),
+                        (true, false) => write!(f, "{:#X}", self),
+                        (false, true) => write!(f, "{:0X}", self),
+                        (false, false) => write!(f, "{:X}", self),
                     },
-                    FmtType::Bin => match (f.alternate, f.zero) {
-                        (true, true) => Ok(format!("{:#0b}", self)),
-                        (true, false) => Ok(format!("{:#b}", self)),
-                        (false, true) => Ok(format!("{:0b}", self)),
-                        (false, false) => Ok(format!("{:b}", self)),
+                    FmtType::Bin => match (f.alternate(), f.zero()) {
+                        (true, true) => write!(f, "{:#0b}", self),
+                        (true, false) => write!(f, "{:#b}", self),
+                        (false, true) => write!(f, "{:0b}", self),
+                        (false, false) => write!(f, "{:b}", self),
                     },
-                    FmtType::Octal => match (f.alternate, f.zero) {
-                        (true, true) => Ok(format!("{:#0o}", self)),
-                        (true, false) => Ok(format!("{:#o}", self)),
-                        (false, true) => Ok(format!("{:0o}", self)),
-                        (false, false) => Ok(format!("{:o}", self)),
+                    FmtType::Octal => match (f.alternate(), f.zero()) {
+                        (true, true) => write!(f, "{:#0o}", self),
+                        (true, false) => write!(f, "{:#o}", self),
+                        (false, true) => write!(f, "{:0o}", self),
+                        (false, false) => write!(f, "{:o}", self),
                     },
-                    // LowExp doesn't use zero / alternate
-                    FmtType::LowExp => Ok(format!("{:e}", self)),
-                    // UpperExp doesn't use zero / alternate
-                    FmtType::UpperExp => Ok(format!("{:E}", self)),
+                    FmtType::LowExp => write!(f, "{:e}", self),
+                    FmtType::UpperExp => write!(f, "{:E}", self),
                     FmtType::Ptr => {
-                        if f.alternate {
-                            Ok(format!("{:#p}", self))
+                        if f.alternate() {
+                            write!(f, "{:#p}", self)
                         } else {
-                            Ok(format!("{:p}", self))
+                            write!(f, "{:p}", self)
                         }
                     }
-
-                    // Special handling for debug-with-hex
                     FmtType::DebugLowHex => {
-                        if f.alternate {
-                            Ok(format!("{:#x?}", self))
+                        if f.alternate() {
+                            write!(f, "{:#x?}", self)
                         } else {
-                            Ok(format!("{:x?}", self))
+                            write!(f, "{:x?}", self)
                         }
                     }
                     FmtType::DebugUpHex => {
-                        if f.alternate {
-                            Ok(format!("{:#X?}", self))
+                        if f.alternate() {
+                            write!(f, "{:#X?}", self)
                         } else {
-                            Ok(format!("{:X?}", self))
+                            write!(f, "{:X?}", self)
                         }
                     }
                 }
-                .map(|s| f.fill_and_align(s, Align::Right))
+                .map_err(|e| e.into())
             }
         }
     };
@@ -388,31 +327,31 @@ impl_dyn_display_int!(u128);
 impl_dyn_display_int!(usize);
 
 impl<T: DynDisplay> DynDisplay for Box<T> {
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
+    fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
         DynDisplay::dyn_fmt(self.as_ref(), f)
     }
 }
 
 impl<T: DynDisplay> DynDisplay for Rc<T> {
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
+    fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
         DynDisplay::dyn_fmt(self.as_ref(), f)
     }
 }
 
 impl<T: DynDisplay> DynDisplay for Arc<T> {
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
+    fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
         DynDisplay::dyn_fmt(self.as_ref(), f)
     }
 }
 
 impl<T: DynDisplay + Clone> DynDisplay for Cow<'_, T> {
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
+    fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
         DynDisplay::dyn_fmt(self.as_ref(), f)
     }
 }
 
 impl DynDisplay for Cow<'_, str> {
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
+    fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
         DynDisplay::dyn_fmt(self.as_ref(), f)
     }
 }
@@ -439,7 +378,7 @@ impl_debug!(OsString);
 impl_debug!(&OsStr);
 
 impl DynDisplay for &dyn DynDisplay {
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
+    fn dyn_fmt(&self, f: &mut Formatter<'_>) -> crate::Result {
         (*self).dyn_fmt(f)
     }
 }

@@ -2,18 +2,18 @@
 name = "dyf"
 version = "0.1.4"
 edition = "2024"
-keywords = ["dynamic", "format", "string"]
+rust-version = "1.85.0"
 description = "Dynamic string formatting library for Rust supporting all standard format specifiers"
+documentation = "https://docs.rs/dyf"
 readme = "README.md"
 repository = "https://github.com/qjerome/dyf"
-documentation = "https://docs.rs/dyf"
 license = "GPL-3.0"
-rust-version = "1.85.0"
+keywords = ["dynamic", "format", "formatting", "runtime", "string"]
 
 [dependencies]
-serde = { version = "1.0", features = ["derive"], optional = true }
 pest = "2.8.1"
 pest_derive = "2.8.1"
+serde = { version = "1.0", features = ["derive"], optional = true }
 thiserror = "2.0.12"
 
 [dev-dependencies]
