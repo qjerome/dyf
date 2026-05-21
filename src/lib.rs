@@ -61,6 +61,7 @@
 //!
 //! ```rust
 //! use dyf::{DynDisplay, Error, FormatSpec, dformat, FormatString};
+//! use std::fmt::Write;
 //!
 //! struct Point {
 //!     x: i32,
@@ -68,8 +69,9 @@
 //! }
 //!
 //! impl DynDisplay for Point {
-//!     fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
-//!         Ok(format!("Point({}, {})", self.x, self.y))
+//!     fn dyn_fmt(&self, f: &mut dyf::Formatter<'_>) -> dyf::Result {
+//!         write!(f, "Point({}, {})", self.x, self.y)?;
+//!         Ok(())
 //!     }
 //! }
 //!
@@ -215,14 +217,11 @@
 
 use std::{
     borrow::Cow,
-    fmt::{Debug, Display},
+    fmt::{Debug, Display, Write},
 };
 
 use pest::{Parser, iterators::Pair};
 use thiserror::Error;
-
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 
 mod imp;
 mod parser;
@@ -278,6 +277,163 @@ pub enum Error {
     /// information about syntax errors in format strings.
     #[error("format parsing error: {0}")]
     Parse(#[from] Box<pest::error::Error<Rule>>),
+
+    /// A write error occurred while writing formatted output.
+    #[error("format write error")]
+    Write(#[from] std::fmt::Error),
+
+    /// Named or positional argument syntax (`{0}`, `{name}`) is not supported.
+    ///
+    /// Arguments are always matched positionally in the order they are passed.
+    #[error("named/positional arguments are not supported: {0}")]
+    NamedArgument(String),
+}
+
+/// Type alias for `std::result::Result<(), Error>`.
+///
+/// Returned by [`DynDisplay::dyn_fmt`] and the padding helpers on [`Formatter`].
+/// Mirrors [`std::fmt::Result`] in the same way that [`DynDisplay`] mirrors
+/// [`std::fmt::Display`].
+pub type Result = std::result::Result<(), Error>;
+
+/// The per-value formatting context passed to [`DynDisplay::dyn_fmt`].
+///
+/// This type mirrors [`std::fmt::Formatter`]: it bundles the [`FormatSpec`] with
+/// the output sink and exposes convenience methods for writing padded output.
+///
+/// It implements [`std::fmt::Write`], so `write!(f, ...)` works naturally inside
+/// a [`DynDisplay::dyn_fmt`] implementation.
+///
+/// # Examples
+///
+/// Using `write!` directly — padding is applied automatically:
+///
+/// ```
+/// use dyf::{DynDisplay, Formatter};
+/// use std::fmt::Write;
+///
+/// struct Point { x: i32, y: i32 }
+///
+/// impl DynDisplay for Point {
+///     fn dyn_fmt(&self, f: &mut Formatter<'_>) -> dyf::Result {
+///         Ok(write!(f, "Point({}, {})", self.x, self.y)?)
+///     }
+/// }
+/// ```
+pub struct Formatter<'a> {
+    spec: &'a FormatSpec,
+    out: &'a mut dyn Write,
+    default_align: Align,
+    /// Buffer for writes made via the `Write` trait. Flushed with padding by
+    /// [`Formatter::finish`] or emptied (without padding) if `pad`/`pad_integral`
+    /// is called explicitly.
+    buf: String,
+}
+
+impl<'a> Formatter<'a> {
+    /// Creates a new `Formatter` wrapping the given spec and output sink.
+    #[inline]
+    pub fn new(spec: &'a FormatSpec, out: &'a mut dyn Write) -> Self {
+        Self {
+            spec,
+            out,
+            default_align: Align::Left,
+            buf: String::new(),
+        }
+    }
+
+    /// Returns the full [`FormatSpec`].
+    #[inline]
+    pub fn spec(&self) -> &FormatSpec {
+        self.spec
+    }
+
+    /// Returns the fill character (defaults to `' '`).
+    #[inline]
+    pub fn fill(&self) -> char {
+        self.spec.fill.unwrap_or(' ')
+    }
+
+    /// Returns the effective alignment: the value from the format spec if one was
+    /// explicitly requested, otherwise the default set by [`Formatter::set_default_align`].
+    #[inline]
+    pub fn align(&self) -> Align {
+        self.spec.align.unwrap_or(self.default_align)
+    }
+
+    /// Returns the minimum field width, if specified.
+    #[inline]
+    pub fn width(&self) -> Option<usize> {
+        self.spec.width
+    }
+
+    /// Returns the precision, if specified.
+    #[inline]
+    pub fn precision(&self) -> Option<usize> {
+        self.spec.precision
+    }
+
+    /// Returns the sign option, if any.
+    #[inline]
+    pub fn sign(&self) -> Option<Sign> {
+        self.spec.sign
+    }
+
+    /// Returns `true` if the alternate form (`#`) was requested.
+    #[inline]
+    pub fn alternate(&self) -> bool {
+        self.spec.alternate
+    }
+
+    /// Returns `true` if zero-padding (`0`) was requested.
+    #[inline]
+    pub fn zero(&self) -> bool {
+        self.spec.zero
+    }
+
+    /// Returns the format type (e.g. [`FmtType::LowerHex`], [`FmtType::Debug`]).
+    #[inline]
+    pub fn fmt_type(&self) -> FmtType {
+        self.spec.ty
+    }
+
+    /// Sets the default alignment used when none is specified in the format string.
+    ///
+    /// Overrides the initial `Left` default. Call this before `write!(f, ...)` when
+    /// implementing a type that should right-align by default (e.g. a custom numeric type).
+    #[inline]
+    pub fn set_default_align(&mut self, align: Align) {
+        self.default_align = align
+    }
+
+    /// Flushes buffered `write!` content to the output with `Left` as the default
+    /// alignment.
+    ///
+    /// Called automatically by the formatting pipeline after [`DynDisplay::dyn_fmt`]
+    /// returns; there is no need to call this manually.
+    pub(crate) fn finish(&mut self) -> Result {
+        if !self.buf.is_empty() {
+            let buf = std::mem::take(&mut self.buf);
+            self.spec.write_aligned(
+                &buf,
+                self.spec.align.unwrap_or(self.default_align),
+                self.out,
+            )?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Write for Formatter<'_> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.buf.push_str(s);
+        Ok(())
+    }
+
+    fn write_char(&mut self, c: char) -> std::fmt::Result {
+        self.buf.push(c);
+        Ok(())
+    }
 }
 
 /// A trait for dynamic display formatting.
@@ -292,6 +448,7 @@ pub enum Error {
 ///
 /// ```
 /// use dyf::{DynDisplay, FormatSpec, Error};
+/// use std::fmt::Write;
 ///
 /// struct Point {
 ///     x: i32,
@@ -299,9 +456,9 @@ pub enum Error {
 /// }
 ///
 /// impl DynDisplay for Point {
-///     fn dyn_fmt(&self, spec: &FormatSpec) -> Result<String, Error> {
-///         let s = format!("Point({}, {})", self.x, self.y);
-///         Ok(spec.fill_and_align(s, dyf::Align::Left))
+///     fn dyn_fmt(&self, f: &mut dyf::Formatter<'_>) -> dyf::Result {
+///         write!(f, "Point({}, {})", self.x, self.y)?;
+///         Ok(())
 ///     }
 /// }
 /// ```
@@ -309,7 +466,8 @@ pub enum Error {
 /// Implementation with format-aware behavior:
 ///
 /// ```
-/// use dyf::{DynDisplay, FormatSpec, Error, FmtType};
+/// use dyf::{DynDisplay, FmtType, Error};
+/// use std::fmt::Write;
 ///
 /// struct Color {
 ///     r: u8,
@@ -318,25 +476,13 @@ pub enum Error {
 /// }
 ///
 /// impl DynDisplay for Color {
-///     fn dyn_fmt(&self, spec: &FormatSpec) -> Result<String, Error> {
-///         match spec.ty {
-///             FmtType::LowerHex => Ok(format!(
-///                 "#{:02x}{:02x}{:02x}",
-///                 self.r, self.g, self.b
-///             )),
-///             FmtType::UpperHex => Ok(format!(
-///                 "#{:02X}{:02X}{:02X}",
-///                 self.r, self.g, self.b
-///             )),
-///             FmtType::Debug => Ok(format!(
-///                 "Color {{ r: {}, g: {}, b: {} }}",
-///                 self.r, self.g, self.b
-///             )),
-///             _ => Ok(format!(
-///                 "RGB({}, {}, {})",
-///                 self.r, self.g, self.b
-///             )),
-///         }.map(|s| spec.fill_and_align(s, dyf::Align::Left))
+///     fn dyn_fmt(&self, f: &mut dyf::Formatter<'_>) -> dyf::Result {
+///         match f.fmt_type() {
+///             FmtType::LowerHex => write!(f, "#{:02x}{:02x}{:02x}", self.r, self.g, self.b).map_err(Error::from),
+///             FmtType::UpperHex => write!(f, "#{:02X}{:02X}{:02X}", self.r, self.g, self.b).map_err(Error::from),
+///             FmtType::Debug => write!(f, "Color {{ r: {}, g: {}, b: {} }}", self.r, self.g, self.b).map_err(Error::from),
+///             _ => write!(f, "RGB({}, {}, {})", self.r, self.g, self.b).map_err(Error::from),
+///         }
 ///     }
 /// }
 /// ```
@@ -345,18 +491,13 @@ pub trait DynDisplay {
     ///
     /// # Arguments
     ///
-    /// * `spec` - The format specification containing alignment, width, precision,
-    ///   and other formatting options
-    ///
-    /// # Returns
-    ///
-    /// A `Result` containing the formatted string or an error if formatting fails.
+    /// * `f` - The formatting context carrying the spec and the output sink
     ///
     /// # Errors
     ///
-    /// This function may return an error if the format specification is not supported
-    /// for this type or if formatting fails for other reasons.
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error>;
+    /// Returns an error if the format specification is not supported for this type
+    /// or if writing to the output sink fails.
+    fn dyn_fmt(&self, f: &mut Formatter<'_>) -> Result;
 }
 
 /// Specifies the type of formatting to apply to a value.
@@ -408,6 +549,7 @@ pub trait DynDisplay {
 ///
 /// ```
 /// use dyf::{FmtType, FormatSpec, DynDisplay, Error};
+/// use std::fmt::Write;
 ///
 /// struct Color {
 ///     r: u8,
@@ -416,29 +558,17 @@ pub trait DynDisplay {
 /// }
 ///
 /// impl DynDisplay for Color {
-///     fn dyn_fmt(&self, spec: &FormatSpec) -> Result<String, Error> {
-///         match spec.ty {
-///             FmtType::LowerHex => Ok(format!(
-///                 "#{:02x}{:02x}{:02x}",
-///                 self.r, self.g, self.b
-///             )),
-///             FmtType::UpperHex => Ok(format!(
-///                 "#{:02X}{:02X}{:02X}",
-///                 self.r, self.g, self.b
-///             )),
-///             FmtType::Debug => Ok(format!(
-///                 "Color {{ r: {}, g: {}, b: {} }}",
-///                 self.r, self.g, self.b
-///             )),
-///             _ => Ok(format!(
-///                 "RGB({}, {}, {})",
-///                 self.r, self.g, self.b
-///             )),
+///     fn dyn_fmt(&self, f: &mut dyf::Formatter<'_>) -> dyf::Result {
+///         match f.fmt_type() {
+///             FmtType::LowerHex => Ok(write!(f, "#{:02x}{:02x}{:02x}", self.r, self.g, self.b)?),
+///             FmtType::UpperHex => Ok(write!(f, "#{:02X}{:02X}{:02X}", self.r, self.g, self.b)?),
+///             FmtType::Debug => Ok(write!(f, "Color {{ r: {}, g: {}, b: {} }}", self.r, self.g, self.b)?),
+///             _ => Ok(write!(f, "RGB({}, {}, {})", self.r, self.g, self.b)?),
 ///         }
 ///     }
 /// }
 /// ```
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Copy)]
 pub enum FmtType {
     /// Default formatting for the type.
@@ -523,7 +653,7 @@ impl Display for FmtType {
 /// The [`Align`] enum determines how text should be aligned when a width is specified
 /// in a format specification. It controls whether the text is left-aligned, right-aligned,
 /// or centered within the allocated space.
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Copy)]
 pub enum Align {
     /// Left-align the text within the field.
@@ -566,7 +696,7 @@ impl Display for Align {
 /// In format strings, these correspond to:
 /// - `+` for `Sign::Positive` (show signs for both positive and negative numbers)
 /// - `-` for `Sign::Negative` (show signs only for negative numbers, default behavior)
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Copy)]
 pub enum Sign {
     /// Always show the sign for numeric values.
@@ -602,7 +732,7 @@ impl Display for Sign {
 ///
 /// A format specification in a string typically looks like:
 /// `:[fill][align][sign][#][0][width][.precision][type]`
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct FormatSpec {
     /// The fill character to use for padding.
@@ -744,45 +874,55 @@ impl FormatSpec {
             && matches!(self.ty, FmtType::Default)
     }
 
-    /// Applies fill and alignment to a string according to this format specification.
+    /// Writes `s` into `out`, applying fill and alignment from this format specification.
     ///
     /// # Arguments
     ///
-    /// * `s` - The string to format
-    /// * `default_align` - The default alignment to use if none is specified
-    pub fn fill_and_align(&self, s: String, default_align: Align) -> String {
-        let width = self.width.unwrap_or(s.len());
+    /// * `s` - The already-formatted string to align/pad
+    /// * `default_align` - Alignment to use when none is specified in the spec
+    /// * `out` - The output sink to write into
+    pub fn write_aligned(&self, s: &str, default_align: Align, out: &mut dyn Write) -> Result {
+        let Some(width) = self.width else {
+            out.write_str(s)?;
+            return Ok(());
+        };
         if width <= s.len() {
-            s
-        } else {
-            let mut out = String::new();
-            let pad = width.saturating_sub(s.len());
-            let align = self.align.unwrap_or(default_align);
-            match align {
-                Align::Left => {
-                    out.push_str(&s);
-                    (0..pad).for_each(|_| out.push(self.fill.unwrap_or(' ')));
-                }
-                Align::Center => {
-                    if pad > 0 {
-                        let r_pad = pad / 2;
-                        let l_pad = pad.div_ceil(2);
-                        (0..r_pad).for_each(|_| out.push(self.fill.unwrap_or(' ')));
-                        out.push_str(&s);
-                        (0..l_pad).for_each(|_| out.push(self.fill.unwrap_or(' ')));
-                    }
-                }
-                Align::Right => {
-                    (0..pad).for_each(|_| out.push(self.fill.unwrap_or(' ')));
-                    out.push_str(&s);
+            out.write_str(s)?;
+            return Ok(());
+        }
+        let pad = width - s.len();
+        let fill = self.fill.unwrap_or(' ');
+        let align = self.align.unwrap_or(default_align);
+        match align {
+            Align::Left => {
+                out.write_str(s)?;
+                for _ in 0..pad {
+                    out.write_char(fill)?;
                 }
             }
-            out
+            Align::Center => {
+                let r_pad = pad / 2;
+                let l_pad = pad.div_ceil(2);
+                for _ in 0..r_pad {
+                    out.write_char(fill)?;
+                }
+                out.write_str(s)?;
+                for _ in 0..l_pad {
+                    out.write_char(fill)?;
+                }
+            }
+            Align::Right => {
+                for _ in 0..pad {
+                    out.write_char(fill)?;
+                }
+                out.write_str(s)?;
+            }
         }
+        Ok(())
     }
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 struct Format {
     start: usize,
@@ -832,8 +972,10 @@ impl Format {
         }
     }
 
-    fn dyn_fmt_arg<D: DynDisplay>(&self, arg: &D) -> Result<String, Error> {
-        DynDisplay::dyn_fmt(arg, &self.spec)
+    fn dyn_fmt_arg<D: DynDisplay>(&self, arg: &D, out: &mut dyn Write) -> Result {
+        let mut f = Formatter::new(&self.spec, out);
+        DynDisplay::dyn_fmt(arg, &mut f)?;
+        f.finish()
     }
 }
 
@@ -874,7 +1016,7 @@ impl Format {
 /// let fmt_str = fmt.to_string_lossy();
 /// let owned_str = fmt.into_string();
 /// ```
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct FormatString {
     s: String,
@@ -883,7 +1025,7 @@ pub struct FormatString {
 
 impl FormatString {
     #[inline]
-    fn new_from_str<S: AsRef<str>>(s: S) -> Result<Self, Error> {
+    fn new_from_str<S: AsRef<str>>(s: S) -> std::result::Result<Self, Error> {
         let pairs = FmtParser::parse(Rule::format_string, s.as_ref())
             .map_err(|e| Error::from(Box::new(e)))?;
 
@@ -924,7 +1066,7 @@ impl FormatString {
     ///
     /// let fmt = FormatString::from_string("Hello, {}!".to_string()).unwrap();
     /// ```
-    pub fn from_string(s: String) -> Result<Self, Error> {
+    pub fn from_string(s: String) -> std::result::Result<Self, Error> {
         Self::new_from_str(s)
     }
 
@@ -981,60 +1123,58 @@ impl FormatString {
     }
 }
 
-/// A formatter that applies format specifications to values.
+/// Drives the full formatting pipeline for a [`FormatString`].
 ///
-/// The `Formatter` struct collects arguments and applies format specifications to them
-/// to build the final formatted string. It collects all arguments first using [`Formatter::push_arg`]
-/// and then performs the formatting in one operation with the [`Formatter::format`] method.
+/// `Writer` collects arguments via [`Writer::push_arg`] and then writes the
+/// fully formatted string in one pass with [`Writer::format`].
+/// Most callers should use the [`dformat!`] macro instead.
 ///
 /// # Examples
 ///
 /// Basic usage with a format string:
 ///
 /// ```
-/// use dyf::{FormatString, Formatter};
+/// use dyf::{FormatString, Writer};
 ///
 /// let fmt = FormatString::from_string("Hello, {}!".to_string()).unwrap();
-/// let mut formatter = Formatter::from(&fmt);
-/// formatter.push_arg(&"world").format().unwrap();
-/// assert_eq!(formatter.into_string(), "Hello, world!");
+/// let mut w = Writer::from(&fmt);
+/// w.push_arg(&"world").format().unwrap();
+/// assert_eq!(w.into_string(), "Hello, world!");
 /// ```
 ///
 /// Formatting multiple values:
 ///
 /// ```
-/// use dyf::{FormatString, Formatter};
+/// use dyf::{FormatString, Writer};
 ///
 /// let fmt = FormatString::from_string("{}, {}!".to_string()).unwrap();
-/// let mut formatter = Formatter::from(&fmt);
-/// formatter.push_arg(&"Hello").push_arg(&"world").format().unwrap();
-/// assert_eq!(formatter.into_string(), "Hello, world!");
+/// let mut w = Writer::from(&fmt);
+/// w.push_arg(&"Hello").push_arg(&"world").format().unwrap();
+/// assert_eq!(w.into_string(), "Hello, world!");
 /// ```
 ///
 /// Using with custom types:
 ///
 /// ```
-/// use dyf::{FormatString, Formatter, DynDisplay, Error, FormatSpec};
+/// use dyf::{FormatString, Writer, DynDisplay};
+/// use std::fmt::Write;
 ///
-/// struct Point {
-///     x: i32,
-///     y: i32,
-/// }
+/// struct Point { x: i32, y: i32 }
 ///
 /// impl DynDisplay for Point {
-///     fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
-///         let s = format!("Point({}, {})", self.x, self.y);
-///         Ok(f.fill_and_align(s, dyf::Align::Left))
+///     fn dyn_fmt(&self, f: &mut dyf::Formatter<'_>) -> dyf::Result {
+///         write!(f, "Point({}, {})", self.x, self.y)?;
+///         Ok(())
 ///     }
 /// }
 ///
 /// let fmt = FormatString::from_string("Point: {}".to_string()).unwrap();
 /// let point = Point { x: 10, y: 20 };
-/// let mut formatter = Formatter::from(&fmt);
-/// formatter.push_arg(&point).format().unwrap();
-/// assert_eq!(formatter.into_string(), "Point: Point(10, 20)");
+/// let mut w = Writer::from(&fmt);
+/// w.push_arg(&point).format().unwrap();
+/// assert_eq!(w.into_string(), "Point: Point(10, 20)");
 /// ```
-pub struct Formatter<'s> {
+pub struct Writer<'s> {
     /// index in the format string
     i: usize,
     format_string: &'s FormatString,
@@ -1042,7 +1182,7 @@ pub struct Formatter<'s> {
     out: String,
 }
 
-impl<'s> From<&'s FormatString> for Formatter<'s> {
+impl<'s> From<&'s FormatString> for Writer<'s> {
     fn from(value: &'s FormatString) -> Self {
         Self {
             i: 0,
@@ -1053,28 +1193,20 @@ impl<'s> From<&'s FormatString> for Formatter<'s> {
     }
 }
 
-impl<'s> Formatter<'s> {
+impl<'s> Writer<'s> {
     /// Adds an argument to be formatted.
     ///
-    /// This method collects arguments that will be formatted when [`Formatter::format`] is called.
-    /// It supports method chaining for convenient use.
-    ///
-    /// # Arguments
-    ///
-    /// * `arg` - The argument to format, which must implement [`DynDisplay`]
-    ///
-    /// # Returns
-    ///
-    /// A mutable reference to the formatter for method chaining.
+    /// Arguments are matched to format placeholders in the order they are pushed.
+    /// Supports method chaining.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dyf::{FormatString, Formatter};
+    /// use dyf::{FormatString, Writer};
     ///
     /// let fmt = FormatString::from_string("{}, {}!".to_string()).unwrap();
-    /// let mut formatter = Formatter::from(&fmt);
-    /// formatter.push_arg(&"Hello").push_arg(&"world");
+    /// let mut w = Writer::from(&fmt);
+    /// w.push_arg(&"Hello").push_arg(&"world");
     /// ```
     pub fn push_arg<A>(&mut self, arg: &'s A) -> &mut Self
     where
@@ -1084,32 +1216,27 @@ impl<'s> Formatter<'s> {
         self
     }
 
-    /// Applies the format specifications to all collected arguments.
+    /// Applies all format specifications to the collected arguments.
     ///
-    /// This method performs the actual formatting after all arguments have been collected
-    /// with [`Formatter::push_arg`]. It verifies that the number of arguments matches the number of
-    /// format specifications in the format string.
-    ///
-    /// # Returns
-    ///
-    /// A mutable reference to the formatter for method chaining.
+    /// Verifies that the argument count matches the number of placeholders, then
+    /// writes each formatted value into the internal output buffer.
     ///
     /// # Errors
     ///
-    /// Returns an error if the number of arguments doesn't match the number of format
-    /// specifications, or if any individual formatting operation fails.
+    /// Returns an error if the argument count doesn't match the placeholder count,
+    /// if a named/positional argument is used, or if a format operation fails.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dyf::{FormatString, Formatter};
+    /// use dyf::{FormatString, Writer};
     ///
     /// let fmt = FormatString::from_string("{:>5}, {:<5}".to_string()).unwrap();
-    /// let mut formatter = Formatter::from(&fmt);
-    /// formatter.push_arg(&42).push_arg(&"hello").format().unwrap();
-    /// assert_eq!(formatter.into_string(), "   42, hello");
+    /// let mut w = Writer::from(&fmt);
+    /// w.push_arg(&42).push_arg(&"hello").format().unwrap();
+    /// assert_eq!(w.into_string(), "   42, hello");
     /// ```
-    pub fn format(&mut self) -> Result<&mut Self, Error> {
+    pub fn format(&mut self) -> std::result::Result<&mut Self, Error> {
         if self.args.len() != self.format_string.fmts.len() {
             return Err(Error::ArgumentCountMismatch(
                 // expected
@@ -1119,12 +1246,18 @@ impl<'s> Formatter<'s> {
             ));
         }
 
+        for fmt in &self.format_string.fmts {
+            if let Some(arg) = &fmt.arg {
+                return Err(Error::NamedArgument(arg.clone()));
+            }
+        }
+
         for (i, a) in self.args.iter().enumerate() {
             // this cannot panic as lengths are equal
             let arg_fmt = &self.format_string.fmts[i];
             let slice = &self.format_string.s.as_str()[self.i..];
             self.out.push_str(&slice[..arg_fmt.start - self.i]);
-            self.out.push_str(&arg_fmt.dyn_fmt_arg(a)?);
+            arg_fmt.dyn_fmt_arg(a, &mut self.out)?;
             self.i = arg_fmt.end;
         }
 
@@ -1135,40 +1268,33 @@ impl<'s> Formatter<'s> {
         Ok(self)
     }
 
-    /// Returns a borrowed version of the formatted string.
-    ///
-    /// This provides access to the current state of the formatted string without
-    /// consuming the formatter.
+    /// Returns a borrowed view of the formatted output so far.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dyf::{FormatString, Formatter};
+    /// use dyf::{FormatString, Writer};
     ///
     /// let fmt = FormatString::from_string("Value: {}".to_string()).unwrap();
-    /// let mut formatter = Formatter::from(&fmt);
-    /// formatter.push_arg(&42).format().unwrap();
-    /// let borrowed = formatter.to_string_lossy();
-    /// assert_eq!(&*borrowed, "Value: 42");
+    /// let mut w = Writer::from(&fmt);
+    /// w.push_arg(&42).format().unwrap();
+    /// assert_eq!(&*w.to_string_lossy(), "Value: 42");
     /// ```
     pub fn to_string_lossy(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.out)
     }
 
-    /// Consumes the formatter and returns the formatted string.
-    ///
-    /// This finalizes the formatting process and returns the complete formatted string.
+    /// Consumes the writer and returns the fully formatted string.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dyf::{FormatString, Formatter};
+    /// use dyf::{FormatString, Writer};
     ///
     /// let fmt = FormatString::from_string("The answer is: {}".to_string()).unwrap();
-    /// let mut formatter = Formatter::from(&fmt);
-    /// formatter.push_arg(&42).format().unwrap();
-    /// let result = formatter.into_string();
-    /// assert_eq!(result, "The answer is: 42");
+    /// let mut w = Writer::from(&fmt);
+    /// w.push_arg(&42).format().unwrap();
+    /// assert_eq!(w.into_string(), "The answer is: 42");
     /// ```
     pub fn into_string(self) -> String {
         self.out
@@ -1216,7 +1342,8 @@ impl<'s> Formatter<'s> {
 /// Using with custom types that implement [`DynDisplay`]:
 ///
 /// ```
-/// use dyf::{FormatString, dformat, DynDisplay, Error, FormatSpec};
+/// use dyf::{FormatString, dformat, DynDisplay};
+/// use std::fmt::Write;
 ///
 /// struct Point {
 ///     x: i32,
@@ -1224,9 +1351,9 @@ impl<'s> Formatter<'s> {
 /// }
 ///
 /// impl DynDisplay for Point {
-///     fn dyn_fmt(&self, spec: &FormatSpec) -> Result<String, Error> {
-///         let s = format!("Point({}, {})", self.x, self.y);
-///         Ok(spec.fill_and_align(s, dyf::Align::Left))
+///     fn dyn_fmt(&self, f: &mut dyf::Formatter<'_>) -> dyf::Result {
+///         write!(f, "Point({}, {})", self.x, self.y)?;
+///         Ok(())
 ///     }
 /// }
 ///
@@ -1239,7 +1366,7 @@ impl<'s> Formatter<'s> {
 /// # Errors
 ///
 /// The macro returns a `Result<String, Error>`. Any error might be one
-/// of the [`Error`] variant.
+/// of the [`enum@Error`] variant.
 ///
 /// # Performance Considerations
 ///
@@ -1267,14 +1394,14 @@ impl<'s> Formatter<'s> {
 macro_rules! dformat {
     ($fmt: expr, $($arg: expr),*) => {
         {
-            let mut fs = $crate::Formatter::from($fmt);
+            let mut w = $crate::Writer::from($fmt);
             $(
-                fs.push_arg(&$arg);
+                w.push_arg(&$arg);
             )*
 
-            match fs.format() {
+            match w.format() {
                 Err(e) => Err(e),
-                Ok(_) => Ok(fs.into_string()),
+                Ok(_) => Ok(w.into_string()),
             }
         }
     };
@@ -1645,6 +1772,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_serde() {
         let fs = FormatString::new_from_str("{}").unwrap();
         let js_fs = serde_json::to_string(&fs).unwrap();

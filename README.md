@@ -65,6 +65,7 @@ assert_eq!(result, format!("{:05} {:<10.2} {:^10}", 42, 42.1234, "hello"));
 
 ```rust
 use dyf::{DynDisplay, Error, FormatSpec, dformat, FormatString};
+use std::fmt::Write;
 
 struct Point {
     x: i32,
@@ -72,8 +73,9 @@ struct Point {
 }
 
 impl DynDisplay for Point {
-    fn dyn_fmt(&self, f: &FormatSpec) -> Result<String, Error> {
-        Ok(format!("Point({}, {})", self.x, self.y))
+    fn dyn_fmt(&self, f: &mut dyf::Formatter<'_>) -> dyf::Result {
+        write!(f, "Point({}, {})", self.x, self.y)?;
+        Ok(())
     }
 }
 
