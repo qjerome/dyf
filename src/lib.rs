@@ -32,6 +32,18 @@
 //! Once the `serde` feature is enabled, the `FormatString` structure derives the `Serialize` and `Deserialize` traits.
 //! This allows you to easily serialize and deserialize `FormatString` instances using the `serde` crate.
 //!
+//! ### Wincode Support
+//!
+//! The `dyf` crate provides optional support for the [`wincode`](https://docs.rs/wincode) serialization framework.
+//! To enable this feature, add the `wincode` feature when adding the crate to your project:
+//!
+//! ```sh
+//! cargo add dyf --features wincode
+//! ```
+//!
+//! Once the `wincode` feature is enabled, the `FormatString` structure derives the `SchemaRead` and `SchemaWrite` traits.
+//! This allows you to serialize and deserialize `FormatString` instances using the `wincode` crate.
+//!
 //! ### Basic Formatting
 //!
 //! ```rust
