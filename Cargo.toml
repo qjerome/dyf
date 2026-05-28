@@ -2,7 +2,7 @@
 name = "dyf"
 version = "0.2.1"
 edition = "2024"
-rust-version = "1.85.0"
+rust-version = "1.89.0"
 description = "Dynamic string formatting library for Rust supporting all standard format specifiers"
 documentation = "https://docs.rs/dyf"
 readme = "README.md"
@@ -15,6 +15,7 @@ pest = "2.8.1"
 pest_derive = "2.8.1"
 serde = { version = "1.0", features = ["derive"], optional = true }
 thiserror = "2.0.12"
+wincode = { version = "0.5.4", features = ["derive"], optional = true }
 
 [dev-dependencies]
 serde_json = "1.0"

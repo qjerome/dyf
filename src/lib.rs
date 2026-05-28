@@ -570,6 +570,7 @@ pub trait DynDisplay {
 /// }
 /// ```
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "wincode", derive(wincode::SchemaRead, wincode::SchemaWrite))]
 #[derive(Debug, Clone, Copy)]
 pub enum FmtType {
     /// Default formatting for the type.
@@ -655,6 +656,7 @@ impl Display for FmtType {
 /// in a format specification. It controls whether the text is left-aligned, right-aligned,
 /// or centered within the allocated space.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "wincode", derive(wincode::SchemaRead, wincode::SchemaWrite))]
 #[derive(Debug, Clone, Copy)]
 pub enum Align {
     /// Left-align the text within the field.
@@ -698,6 +700,7 @@ impl Display for Align {
 /// - `+` for `Sign::Positive` (show signs for both positive and negative numbers)
 /// - `-` for `Sign::Negative` (show signs only for negative numbers, default behavior)
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "wincode", derive(wincode::SchemaRead, wincode::SchemaWrite))]
 #[derive(Debug, Clone, Copy)]
 pub enum Sign {
     /// Always show the sign for numeric values.
@@ -734,6 +737,7 @@ impl Display for Sign {
 /// A format specification in a string typically looks like:
 /// `:[fill][align][sign][#][0][width][.precision][type]`
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "wincode", derive(wincode::SchemaRead, wincode::SchemaWrite))]
 #[derive(Debug, Clone)]
 pub struct FormatSpec {
     /// The fill character to use for padding.
@@ -924,6 +928,7 @@ impl FormatSpec {
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "wincode", derive(wincode::SchemaRead, wincode::SchemaWrite))]
 #[derive(Debug, Clone)]
 struct Format {
     start: usize,
@@ -1018,6 +1023,7 @@ impl Format {
 /// let owned_str = fmt.into_string();
 /// ```
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "wincode", derive(wincode::SchemaRead, wincode::SchemaWrite))]
 #[derive(Debug, Clone)]
 pub struct FormatString {
     s: String,
@@ -1779,5 +1785,14 @@ mod tests {
         let js_fs = serde_json::to_string(&fs).unwrap();
         let fs: FormatString = serde_json::from_str(&js_fs).unwrap();
         assert_eq!(format!("{}", 42), dformat!(&fs, 42).unwrap())
+    }
+
+    #[test]
+    #[cfg(feature = "wincode")]
+    fn test_wincode() {
+        let fs = FormatString::new_from_str("{}").unwrap();
+        let ser = wincode::serialize(&fs).unwrap();
+        let de: FormatString = wincode::deserialize(&ser).unwrap();
+        assert_eq!(format!("{}", 42), dformat!(&de, 42).unwrap())
     }
 }
